@@ -1,0 +1,11 @@
+{
+  "name": "AfrazGraphzzz",
+  "short_name": "AfrazGraphzzz",
+  "description": "A clear, pocket-sized graphing calculator.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f0",
+  "theme_color": "#f4f5f0",
+  "orientation": "any",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

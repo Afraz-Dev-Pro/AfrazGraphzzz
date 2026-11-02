@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f5f0" />
+    <meta name="description" content="A clear, pocket-sized graphing calculator." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>AfrazGraphzzz — Graphing calculator</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="AfrazGraphzzz home">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 25V7M5 25h22M8 21l5-7 4 3 8-10"/><circle cx="25" cy="7" r="1.5"/></svg></span>
+          <span>AfrazGraphzzz</span>
+        </a>
+        <div class="top-actions">
+          <span class="mode-label"><span class="live-dot"></span> GRAPH MODE</span>
+          <button class="icon-button help-button" id="helpButton" type="button" aria-label="How to use the graph" title="How to use the graph">?</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <section class="equation-panel" aria-labelledby="equationHeading">
+          <div class="panel-heading">
+            <div><p class="eyebrow">YOUR WORKSPACE</p><h1 id="equationHeading">Equations</h1></div>
+            <button class="add-button" id="addEquation" type="button"><span aria-hidden="true">+</span> Add</button>
+          </div>
+          <div class="equation-list" id="equationList" aria-live="polite"></div>
+          <div class="examples">
+            <p class="eyebrow">TRY A SHAPE</p>
+            <div class="example-list">
+              <button class="example-chip" data-expression="x^2" type="button">Parabola <span> x²</span></button>
+              <button class="example-chip" data-expression="sin(x)" type="button">Wave <span>sin x</span></button>
+              <button class="example-chip" data-expression="abs(x)" type="button">V-shape <span>|x|</span></button>
+            </div>
+          </div>
+          <button class="analyze-button" id="analyzeButton" type="button"><span>∑</span> Analyze graph <span class="analyze-arrow">↗</span></button>
+          <div class="keyboard-hint"><span class="hint-key">↵</span> Enter to plot <span class="hint-separator">·</span> Drag graph to move</div>
+        </section>
+
+        <section class="graph-panel" aria-label="Graph plot and controls">
+          <div class="graph-toolbar">
+            <div class="graph-title"><span class="eyebrow">LIVE PLOT</span><span class="coordinate-readout" id="coordinateReadout">x: — <span>·</span> y: —</span></div>
+            <div class="graph-actions">
+              <button class="tool-button" id="resetView" type="button" aria-label="Reset graph view" title="Reset view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 9.7A6.6 6.6 0 1 1 5 14.3M3.5 4.8v4.9h4.9"/></svg><span>Reset</span></button>
+              <span class="toolbar-divider"></span>
+              <button class="zoom-button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+              <span class="zoom-level" id="zoomLevel">1×</span>
+              <button class="zoom-button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            </div>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="graphCanvas" aria-label="Coordinate plane showing equation graphs. Drag to pan and use plus or minus to zoom." role="img"></canvas>
+            <div class="canvas-badge"><span class="live-dot"></span><span id="plotCount">1 curve</span></div>
+            <div class="canvas-empty" id="canvasEmpty" hidden><span class="empty-icon">∿</span><strong>Your graph will appear here</strong><span>Add an equation to get started.</span></div>
+          </div>
+          <div class="graph-footer"><div class="legend" id="graphLegend"></div><span class="graph-tip">Scroll or pinch to zoom</span></div>
+        </section>
+      </div>
+      <footer class="app-footer"><span>Made for the curious.</span><span>Angles in radians <span class="footer-dot">·</span> Tap any equation to edit</span></footer>
+    </main>
+
+    <dialog id="helpDialog" class="help-dialog">
+      <form method="dialog"><button class="dialog-close" aria-label="Close help">×</button></form>
+      <p class="eyebrow">A QUICK START</p><h2>Make a little sense of it.</h2>
+      <p>Type an expression in <code>x</code> to see its shape. Try <code>x^2</code>, <code>sin(x)</code>, or <code>1/x</code>.</p>
+      <div class="help-grid"><span>Functions</span><code>sin · cos · tan · sqrt · abs · ln · log · exp</code><span>Constants</span><code>pi · e</code><span>Operators</span><code>+ − × ÷ ^ ( )</code></div>
+      <p class="help-note">Drag to pan. Pinch or use + / − to zoom. Tap a plotted curve to read its coordinates.</p>
+      <form method="dialog"><button class="done-button">Got it</button></form>
+    </dialog>
+    <dialog id="analysisDialog" class="help-dialog analysis-dialog">
+      <form method="dialog"><button class="dialog-close" aria-label="Close analysis">×</button></form>
+      <p class="eyebrow">GRAPH TOOLS</p><h2>Look a little closer.</h2>
+      <label class="analysis-field"><span>Equation</span><select id="analysisEquation"></select></label>
+      <label class="analysis-field"><span>Tool</span><select id="analysisMode"><option value="trace">Trace a value</option><option value="roots">Find x-intercepts</option><option value="derivative">Slope at x</option><option value="integral">Area under curve</option><option value="table">Value table</option></select></label>
+      <div class="analysis-values" id="analysisValues"></div>
+      <button class="done-button" id="runAnalysis" type="button">Calculate</button>
+      <div class="analysis-result" id="analysisResult" aria-live="polite"><span>Choose a tool to explore this curve.</span></div>
+    </dialog>
+    <script src="app.js" defer></script>
+  </body>
+</html>
