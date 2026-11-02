@@ -1,10 +1,11 @@
 (() => {
   'use strict';
   const colors = ['#287f62', '#e18a52', '#8170cf', '#3785ad', '#d65f70', '#869d36'];
-  const MAX_EXPRESSION_LENGTH = 256;
-  const MAX_TOKEN_COUNT = 128;
-  const MAX_PARSE_DEPTH = 32;
+  const { compile, parseAnalysisNumber, MAX_EXPRESSION_LENGTH, MAX_ANALYSIS_ABS_X } = window.GraphMath;
   const MAX_EQUATIONS = 8;
+  const MAX_STORED_EQUATIONS_LENGTH = 8192;
+  const MAX_STORED_VIEW_LENGTH = 256;
+  const MAX_VIEW_COORDINATE = 1e6;
   const list = document.querySelector('#equationList');
   const canvas = document.querySelector('#graphCanvas');
   const ctx = canvas.getContext('2d');
@@ -13,14 +14,20 @@
   let nextId = 2;
   let view = { x: 0, y: 0, scale: 48 };
   try {
-    const savedEquations = JSON.parse(localStorage.getItem('graphite.equations') || 'null');
+    const storedEquations = localStorage.getItem('graphite.equations');
+    const savedEquations = storedEquations && storedEquations.length <= MAX_STORED_EQUATIONS_LENGTH ? JSON.parse(storedEquations) : null;
     if (Array.isArray(savedEquations) && savedEquations.length) {
-      equations = savedEquations.filter(item => item && Number.isInteger(item.id) && typeof item.expression === 'string' && item.expression.length <= MAX_EXPRESSION_LENGTH).slice(0, MAX_EQUATIONS).map((item, index) => ({ id: item.id, expression: item.expression, visible: item.visible !== false, color: colors[index % colors.length], error: '' }));
+      equations = savedEquations.filter(item => item && Number.isSafeInteger(item.id) && item.id > 0 && item.id < Number.MAX_SAFE_INTEGER && typeof item.expression === 'string' && item.expression.length <= MAX_EXPRESSION_LENGTH).slice(0, MAX_EQUATIONS).map((item, index) => ({ id: item.id, expression: item.expression, visible: item.visible !== false, color: colors[index % colors.length], error: '' }));
       if (!equations.length) equations = [{ id: 1, expression: 'x^2', visible: true, color: colors[0], error: '' }];
       nextId = Math.max(...equations.map(item => item.id)) + 1;
     }
-    const savedView = JSON.parse(localStorage.getItem('graphite.view') || 'null');
-    if (savedView && Number.isFinite(savedView.x) && Number.isFinite(savedView.y) && Number.isFinite(savedView.scale)) view = { x: savedView.x, y: savedView.y, scale: Math.min(420, Math.max(8, savedView.scale)) };
+    const storedView = localStorage.getItem('graphite.view');
+    const savedView = storedView && storedView.length <= MAX_STORED_VIEW_LENGTH ? JSON.parse(storedView) : null;
+      if (savedView && Number.isFinite(savedView.x) && Number.isFinite(savedView.y) && Number.isFinite(savedView.scale)) view = {
+        x: Math.max(-MAX_VIEW_COORDINATE, Math.min(MAX_VIEW_COORDINATE, savedView.x)),
+        y: Math.max(-MAX_VIEW_COORDINATE, Math.min(MAX_VIEW_COORDINATE, savedView.y)),
+        scale: Math.min(420, Math.max(8, savedView.scale))
+      };
   } catch { /* Storage may be disabled; the calculator still works for this session. */ }
   let dimensions = { width: 0, height: 0, dpr: 1 };
   let pointer = null;
@@ -36,63 +43,9 @@
     } catch { /* Storage may be disabled; calculations remain available in memory. */ }
   }
 
-  function tokenize(source) {
-    if (source.length > MAX_EXPRESSION_LENGTH) throw new Error(`Keep equations under ${MAX_EXPRESSION_LENGTH} characters.`);
-    const tokens = [];
-    const push = token => { if (tokens.length >= MAX_TOKEN_COUNT - 1) throw new Error(`Keep equations under ${MAX_TOKEN_COUNT - 1} math tokens.`); tokens.push(token); };
-    let i = 0;
-    while (i < source.length) {
-      const c = source[i];
-      if (/\s/.test(c)) { i++; continue; }
-      const number = source.slice(i).match(/^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i);
-      if (number) { push({ type: 'number', value: Number(number[0]) }); i += number[0].length; continue; }
-      const name = source.slice(i).match(/^[a-zA-Z]+/);
-      if (name) { push({ type: 'name', value: name[0].toLowerCase() }); i += name[0].length; continue; }
-      if ('+-*/^(),'.includes(c)) { push({ type: c, value: c }); i++; continue; }
-      throw new Error(`Unexpected character “${c}”`);
-    }
-    tokens.push({ type: 'end', value: '' });
-    return tokens;
-  }
-  function compile(source) {
-    const tokens = tokenize(source);
-    let pos = 0;
-    const peek = () => tokens[pos];
-    const take = type => { if (peek().type !== type) throw new Error(`Expected “${type}”`); return tokens[pos++]; };
-    const functions = { sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan, sqrt: Math.sqrt, abs: Math.abs, ln: Math.log, log: Math.log10, exp: Math.exp, floor: Math.floor, ceil: Math.ceil, round: Math.round, sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh };
-    const primary = () => {
-      const token = peek();
-      if (token.type === 'number') { pos++; return () => token.value; }
-      if (token.type === 'name') {
-        pos++;
-        if (peek().type === '(') {
-          if (!Object.prototype.hasOwnProperty.call(functions, token.value)) throw new Error(`Unknown function “${token.value}”`);
-          pos++; const arg = nestedExpression(); take(')'); const fn = functions[token.value]; return x => fn(arg(x));
-        }
-        if (token.value === 'x') return x => x;
-        if (token.value === 'pi') return () => Math.PI;
-        if (token.value === 'e') return () => Math.E;
-        throw new Error(`Unknown name “${token.value}”`);
-      }
-      if (token.type === '(') { pos++; const value = nestedExpression(); take(')'); return value; }
-      throw new Error('Expected a number, x, or function');
-    };
-    const power = () => { let left = primary(); if (peek().type === '^') { pos++; const right = unary(); const l = left; left = x => Math.pow(l(x), right(x)); } return left; };
-    const unary = () => { if (peek().type === '+') { pos++; return unary(); } if (peek().type === '-') { pos++; const value = unary(); return x => -value(x); } return power(); };
-    const term = () => {
-      let left = unary();
-      while (peek().type === '*' || peek().type === '/' || peek().type === 'number' || peek().type === 'name' || peek().type === '(') {
-        const explicit = peek().type === '*' || peek().type === '/'; const op = explicit ? tokens[pos++].type : '*'; const prior = left, right = unary();
-        left = op === '*' ? x => prior(x) * right(x) : x => prior(x) / right(x);
-      }
-      return left;
-    };
-    const expression = () => { let left = term(); while (peek().type === '+' || peek().type === '-') { const op = tokens[pos++].type; const prior = left, right = term(); left = op === '+' ? x => prior(x) + right(x) : x => prior(x) - right(x); } return left; };
-    let parseDepth = 0;
-    const nestedExpression = () => { if (parseDepth >= MAX_PARSE_DEPTH) throw new Error(`Function or bracket nesting is limited to ${MAX_PARSE_DEPTH} levels.`); parseDepth++; try { return expression(); } finally { parseDepth--; } };
-    const result = expression();
-    if (peek().type !== 'end') throw new Error('Check the expression syntax');
-    return result;
+  function curveClass(color) {
+    const index = colors.indexOf(color);
+    return `curve-color-${index < 0 ? 1 : index + 1}`;
   }
 
   function prepareEquation(equation) {
@@ -122,9 +75,10 @@
     addButton.title = addButton.disabled ? `Up to ${MAX_EQUATIONS} equations per graph` : 'Add an equation';
     equations.forEach(equation => {
       const row = document.createElement('div'); row.className = 'equation-row'; row.dataset.id = equation.id;
-      const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'curve-toggle'; toggle.style.background = equation.visible ? equation.color : '#d8ded8'; toggle.setAttribute('aria-label', `${equation.visible ? 'Hide' : 'Show'} ${equation.expression || 'equation'}`); toggle.setAttribute('aria-pressed', String(equation.visible));
+      const colorClass = curveClass(equation.color);
+      const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = `curve-toggle ${colorClass}${equation.visible ? '' : ' is-hidden'}`; toggle.setAttribute('aria-label', `${equation.visible ? 'Hide' : 'Show'} ${equation.expression || 'equation'}`); toggle.setAttribute('aria-pressed', String(equation.visible));
       toggle.addEventListener('click', () => { equation.visible = !equation.visible; renderList(); saveState(); scheduleDraw(); });
-      const input = document.createElement('input'); input.value = equation.expression; input.maxLength = MAX_EXPRESSION_LENGTH; input.placeholder = 'e.g. sin(x)'; input.setAttribute('aria-label', `Equation ${equations.indexOf(equation) + 1}`); input.autocomplete = 'off'; input.spellcheck = false; input.style.color = equation.color;
+      const input = document.createElement('input'); input.className = colorClass; input.value = equation.expression; input.maxLength = MAX_EXPRESSION_LENGTH; input.placeholder = 'e.g. sin(x)'; input.setAttribute('aria-label', `Equation ${equations.indexOf(equation) + 1}`); input.autocomplete = 'off'; input.spellcheck = false;
       input.addEventListener('input', () => { equation.expression = input.value; prepareEquation(equation); updateEquationError(equation, input); updateLegend(); saveState(); scheduleDraw(); });
       input.addEventListener('keydown', event => { if (event.key === 'Enter') { setExpression(equation.id, input.value); input.blur(); } });
       input.addEventListener('blur', () => { if (equation.expression.trim()) setExpression(equation.id, equation.expression); });
@@ -146,8 +100,9 @@
   function updateLegend() {
     const legend = document.querySelector('#graphLegend'); legend.replaceChildren();
     equations.forEach((equation, index) => {
-      const item = document.createElement('span'); item.className = 'legend-item'; item.style.opacity = equation.visible ? '1' : '.4';
-      const swatch = document.createElement('i'); swatch.className = 'legend-swatch'; swatch.style.background = equation.color;
+      const colorClass = curveClass(equation.color);
+      const item = document.createElement('span'); item.className = `legend-item${equation.visible ? '' : ' is-hidden'}`;
+      const swatch = document.createElement('i'); swatch.className = `legend-swatch ${colorClass}`;
       const label = document.createElement('span'); label.textContent = `y${equations.length > 1 ? index + 1 : ''} = ${equation.expression || '…'}`;
       item.append(swatch, label); legend.append(item);
     });
@@ -228,7 +183,11 @@
     if (pointer && pointer.id === event.pointerId) {
       const dx = p.x - pointer.x, dy = p.y - pointer.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) pointer.moved = true;
-      if (pointer.moved) { view.x = pointer.viewX - dx / view.scale; view.y = pointer.viewY + dy / view.scale; scheduleDraw(); }
+      if (pointer.moved) {
+        view.x = Math.max(-MAX_VIEW_COORDINATE, Math.min(MAX_VIEW_COORDINATE, pointer.viewX - dx / view.scale));
+        view.y = Math.max(-MAX_VIEW_COORDINATE, Math.min(MAX_VIEW_COORDINATE, pointer.viewY + dy / view.scale));
+        scheduleDraw();
+      }
     }
     const x = (p.x - dimensions.width / 2) / view.scale + view.x, y = (dimensions.height / 2 - p.y) / view.scale + view.y;
     document.querySelector('#coordinateReadout').textContent = `x: ${fmt(x)} · y: ${fmt(y)}`;
@@ -278,7 +237,7 @@
   function inputField(label, name, value) {
     const field = document.createElement('label'); field.className = 'analysis-field compact';
     const caption = document.createElement('span'); caption.textContent = label;
-    const input = document.createElement('input'); input.name = name; input.type = 'number'; input.step = 'any'; input.value = value; input.setAttribute('aria-label', label);
+      const input = document.createElement('input'); input.name = name; input.type = 'number'; input.step = 'any'; input.min = String(-MAX_ANALYSIS_ABS_X); input.max = String(MAX_ANALYSIS_ABS_X); input.value = value; input.setAttribute('aria-label', label);
     field.append(caption, input); return field;
   }
   function renderAnalysisFields() {
@@ -308,7 +267,10 @@
     if (!equation || !equation.expression) { analysisOutput('NO EQUATION', 'Enter an expression first.'); return; }
     let fn;
     try { fn = compile(equation.expression); } catch (error) { analysisOutput('CHECK THE EXPRESSION', error.message); return; }
-    const field = name => Number(analysisValues.querySelector(`[name="${name}"]`)?.value);
+    const field = name => {
+      const input = analysisValues.querySelector(`[name="${name}"]`);
+      return input ? parseAnalysisNumber(input.value, input.validity.valid) : null;
+    };
     const mode = analysisMode.value;
     if (mode === 'trace' || mode === 'derivative') {
       const x = field('x'), y = fn(x);

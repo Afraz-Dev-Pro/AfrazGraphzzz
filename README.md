@@ -23,3 +23,15 @@ For local development, serve this folder with any static HTTP server, such as `n
 Enter an expression in `x`, such as `x^2`, `sin(x)`, `2x`, or `1/(x-2)`. Supported functions include `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sqrt`, `abs`, `ln`, `log` (base 10), `exp`, `floor`, `ceil`, `round`, `sinh`, `cosh`, and `tanh`. Constants: `pi`, `e`. Angles use radians. Analyze a curve to trace values, estimate slopes and integrals, find x-intercepts, or build a value table. Each graph accepts up to 8 equations, each up to 256 characters, to keep rendering responsive.
 
 Use the plus/minus buttons or wheel to zoom; drag to pan; two fingers to pinch zoom. Add more equations to compare curves.
+
+## Input and browser security
+
+Equations are parsed by a math-only allowlist. The parser accepts numbers, `x`, `pi`, `e`, supported functions, and arithmetic operators; it does not evaluate JavaScript. Expressions are limited to 256 characters, 127 math tokens, and 32 nested groups. Analysis values must be finite and within ±1,000,000. User-provided text is rendered through text-only DOM properties.
+
+The HTML includes a restrictive meta CSP for local and static hosting. For an HTTP host, also send the following as a **response header** so framing protection is enforced; `frame-ancestors` cannot be enforced from a meta policy:
+
+```text
+Content-Security-Policy: default-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'
+```
+
+Run the parser security checks with `node --test`.

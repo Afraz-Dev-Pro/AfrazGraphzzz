@@ -8,3 +8,10 @@
 .analysis-result>div{white-space:pre-line}
 .add-button:disabled{opacity:.55;cursor:not-allowed}
 .canvas-empty[hidden]{display:none}
+.curve-toggle.curve-color-1,.legend-swatch.curve-color-1{background:#287f62}.equation-row input.curve-color-1{color:#287f62}
+.curve-toggle.curve-color-2,.legend-swatch.curve-color-2{background:#e18a52}.equation-row input.curve-color-2{color:#e18a52}
+.curve-toggle.curve-color-3,.legend-swatch.curve-color-3{background:#8170cf}.equation-row input.curve-color-3{color:#8170cf}
+.curve-toggle.curve-color-4,.legend-swatch.curve-color-4{background:#3785ad}.equation-row input.curve-color-4{color:#3785ad}
+.curve-toggle.curve-color-5,.legend-swatch.curve-color-5{background:#d65f70}.equation-row input.curve-color-5{color:#d65f70}
+.curve-toggle.curve-color-6,.legend-swatch.curve-color-6{background:#869d36}.equation-row input.curve-color-6{color:#869d36}
+.curve-toggle.is-hidden{background:#d8ded8}.legend-item.is-hidden{opacity:.4}

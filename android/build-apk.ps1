@@ -29,6 +29,7 @@ New-Item -ItemType Directory -Force -Path $assets, $build, (Split-Path -Parent $
 Copy-Item -LiteralPath (Join-Path $workspace 'index.html') -Destination $assets
 Copy-Item -LiteralPath (Join-Path $workspace 'styles.css') -Destination $assets
 Copy-Item -LiteralPath (Join-Path $workspace 'app.js') -Destination $assets
+Copy-Item -LiteralPath (Join-Path $workspace 'math-engine.js') -Destination $assets
 Copy-Item -LiteralPath (Join-Path $workspace 'icon.svg') -Destination $assets
 
 $compiledResources = Join-Path $build 'compiled-resources.zip'
